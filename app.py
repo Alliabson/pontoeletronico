@@ -15,25 +15,26 @@ st.set_page_config(layout="wide", page_title="Controle de Ponto Eletrônico", pa
 
 # --- Funções de Cálculo Integradas ---
 def calculate_worked_hours(ent1, sai1, ent2, sai2):
-    """Calcula o total de horas trabalhadas no formato HH:MM"""
-    times = [ent1, sai1, ent2, sai2]
-    if any(not t or t == "--:--" for t in times):
-        return "00:00"
-    
+    """Calcula horas trabalhadas no formato HH:MM"""
     try:
-        def to_minutes(time_str):
-            h, m = map(int, time_str.split(':'))
+        def time_to_minutes(t):
+            if not t or t in ["--:--", ""]:
+                return 0
+            h, m = map(int, t.split(':'))
             return h * 60 + m
         
-        total_minutes = (to_minutes(sai1) - to_minutes(ent1)) + (to_minutes(sai2) - to_minutes(ent2))
-        hours, minutes = divmod(total_minutes, 60)
-        return f"{hours:02d}:{minutes:02d}"
+        total = (time_to_minutes(sai1) - time_to_minutes(ent1)) + \
+                (time_to_minutes(sai2) - time_to_minutes(ent2))
+        return f"{total//60:02d}:{total%60:02d}" if total > 0 else "00:00"
     except:
         return "00:00"
 
 def calculate_daily_salary(salario_bruto, dias_base=22):
-    """Calcula o valor do salário por dia"""
-    return salario_bruto / dias_base
+    """Calcula valor por dia de trabalho"""
+    try:
+        return float(salario_bruto) / dias_base
+    except:
+        return 0.0
 
 def calculate_taxes(salario_bruto, dependentes=0):
     """Calcula INSS e IRRF conforme tabelas vigentes"""
@@ -111,13 +112,19 @@ def calculate_salary(
 # --- Funções de Formatação Alternativas ---
 def format_currency(value):
     """Formata valores monetários sem dependência de locale"""
-    return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    try:
+        return f"R$ {float(value):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    except:
+        return "R$ 0,00"
 
 def format_date(date_obj):
     """Formata datas no formato dd/mm/aaaa"""
     if isinstance(date_obj, str):
         return date_obj
-    return date_obj.strftime('%d/%m/%Y')
+    try:
+        return date_obj.strftime('%d/%m/%Y')
+    except:
+        return "00/00/0000"
 
 # --- Configuração de Armazenamento (Mantido do seu original) ---
 DATA_DIR = Path("data")
