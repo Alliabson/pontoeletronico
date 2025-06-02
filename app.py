@@ -1,53 +1,25 @@
 import streamlit as st
 from datetime import datetime, time, timedelta
 import pandas as pd
-import locale
 import re
 import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Configuração de locale com fallback mais robusto
+# Configurações iniciais - SEM locale
 load_dotenv()
-
-def safe_locale_set():
-    """Tenta configurar o locale de forma segura com múltiplos fallbacks"""
-    locale_options = [
-        'pt_BR.UTF-8', 
-        'pt_BR.utf8',
-        'pt_BR',
-        'Portuguese_Brazil',
-        'Portuguese',
-        ''
-    ]
-    
-    for loc in locale_options:
-        try:
-            locale.setlocale(locale.LC_ALL, loc)
-            st.session_state['locale_set'] = loc
-            return loc
-        except locale.Error:
-            continue
-    
-    # Se nenhum funcionar, usa o padrão do sistema com aviso
-    st.warning("Não foi possível configurar o locale específico. Usando padrão do sistema.")
-    return ''
-
-# Configura o locale antes de qualquer outra coisa
-safe_locale_set()
-
-# Restante das importações (agora o locale já está configurado)
-from utils.calculations import (
-    calculate_worked_hours,
-    calculate_salary,
-    calculate_daily_salary,
-    calculate_taxes
-)
-from utils.pdf_generator import PDFGenerator
-import base64
-
-# Configurações iniciais
 st.set_page_config(layout="wide", page_title="Controle de Ponto Eletrônico", page_icon="⏱️")
+
+# --- Funções de formatação alternativa ---
+def format_currency(value):
+    """Formata valores monetários sem dependência de locale"""
+    return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+def format_date(date_obj):
+    """Formata datas no formato dd/mm/aaaa"""
+    if isinstance(date_obj, str):
+        return date_obj
+    return date_obj.strftime('%d/%m/%Y')
 
 # --- Configuração de armazenamento ---
 DATA_DIR = Path("data")
@@ -60,7 +32,6 @@ def load_employee_data():
     """Carrega os dados dos funcionários do arquivo CSV"""
     if EMPLOYEE_RECORDS_FILE.exists():
         df = pd.read_csv(EMPLOYEE_RECORDS_FILE, parse_dates=['periodo_inicio', 'periodo_fim'])
-        # Converter colunas de tempo para string (HH:MM)
         time_cols = ['Ent. 1', 'Saí. 1', 'Ent. 2', 'Saí. 2']
         for col in time_cols:
             if col in df.columns:
@@ -422,11 +393,11 @@ def save_current_data(employee_data, ponto_data, employee_data_df):
     st.success("Dados salvos com sucesso!")
     create_backup()
 
+
 def render_summary(employee_data, df_ponto):
     """Renderiza o resumo mensal com cálculos"""
     st.subheader("Resumo Mensal")
     
-    # Calcular totais
     total_minutos = sum(
         int(h.split(':')[0]) * 60 + int(h.split(':')[1]) 
         for h in df_ponto['Horas'] if h != "00:00"
@@ -441,18 +412,14 @@ def render_summary(employee_data, df_ponto):
     dias_trabalhados = len([h for h in df_ponto['Horas'] if h != "00:00"])
     faltas = max(0, dias_uteis - dias_trabalhados)
     
-    # Calcular valores diários
     salario_diario = calculate_daily_salary(employee_data["salario_bruto"])
-    valor_hora = employee_data["salario_bruto"] / 220  # 220 horas mensais
     
-    # Exibir cards de resumo
     cols = st.columns(4)
     cols[0].metric("Horas Trabalhadas", horas_trabalhadas)
     cols[1].metric("Dias Trabalhados", dias_trabalhados)
     cols[2].metric("Faltas", faltas)
-    cols[3].metric("Valor por Dia", locale.currency(salario_diario, grouping=True, symbol=False))
+    cols[3].metric("Valor por Dia", format_currency(salario_diario))
     
-    # Seção de cálculo salarial
     with st.expander("Cálculo Salarial Detalhado", expanded=True):
         cols = st.columns(2)
         
@@ -466,7 +433,6 @@ def render_summary(employee_data, df_ponto):
             outros_beneficios = st.number_input("Outros Benefícios (R$)", min_value=0.0, value=0.0)
         
         if st.button("Calcular Salário Líquido"):
-            # Calcular salário
             salary_data = calculate_salary(
                 salario_bruto=employee_data["salario_bruto"],
                 dias_trabalhados=dias_trabalhados,
@@ -477,30 +443,29 @@ def render_summary(employee_data, df_ponto):
                 dependentes=dependentes
             )
             
-            # Exibir resultados
             st.markdown("### Resultado do Cálculo")
             
             cols = st.columns(2)
             with cols[0]:
                 st.markdown(f"""
-                **Salário Bruto:** R$ {locale.currency(salary_data['bruto'], grouping=True, symbol=False)}  
-                **Adicional Noturno:** R$ {locale.currency(salary_data['adicional_noturno'], grouping=True, symbol=False)}  
-                **Horas Extras:** R$ {locale.currency(salary_data['horas_extras'], grouping=True, symbol=False)}  
-                **Outros Benefícios:** R$ {locale.currency(salary_data['outros_beneficios'], grouping=True, symbol=False)}  
-                **Total de Vencimentos:** R$ {locale.currency(salary_data['total_vencimentos'], grouping=True, symbol=False)}
+                **Salário Bruto:** {format_currency(salary_data['bruto'])}  
+                **Adicional Noturno:** {format_currency(salary_data['adicional_noturno'])}  
+                **Horas Extras:** {format_currency(salary_data['horas_extras'])}  
+                **Outros Benefícios:** {format_currency(salary_data['outros_beneficios'])}  
+                **Total de Vencimentos:** {format_currency(salary_data['total_vencimentos'])}
                 """)
             
             with cols[1]:
                 st.markdown(f"""
-                **INSS:** R$ {locale.currency(salary_data['inss'], grouping=True, symbol=False)}  
-                **IRRF:** R$ {locale.currency(salary_data['irrf'], grouping=True, symbol=False)}  
-                **Outros Descontos:** R$ {locale.currency(salary_data['outros_descontos'], grouping=True, symbol=False)}  
-                **Total de Descontos:** R$ {locale.currency(salary_data['total_descontos'], grouping=True, symbol=False)}  
-                **Salário Líquido:** R$ {locale.currency(salary_data['liquido'], grouping=True, symbol=False)}
+                **INSS:** {format_currency(salary_data['inss'])}  
+                **IRRF:** {format_currency(salary_data['irrf'])}  
+                **Outros Descontos:** {format_currency(salary_data['outros_descontos'])}  
+                **Total de Descontos:** {format_currency(salary_data['total_descontos'])}  
+                **Salário Líquido:** {format_currency(salary_data['liquido'])}
                 """)
             
             st.markdown(f"""
-            **Proporcional ({dias_trabalhados} dias):** R$ {locale.currency(salary_data['proporcional'], grouping=True, symbol=False)}
+            **Proporcional ({dias_trabalhados} dias):** {format_currency(salary_data['proporcional'])}
             """)
             
             # Botão para gerar PDF com os cálculos
