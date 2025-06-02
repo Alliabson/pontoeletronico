@@ -5,24 +5,34 @@ import locale
 import re
 import os
 from pathlib import Path
-from dotenv import load_dotenv  # Adicionado
+from dotenv import load_dotenv
 
-# Configuração de locale com fallback
-load_dotenv()  # Carrega variáveis de ambiente
-os.environ['LC_ALL'] = 'pt_BR.UTF-8'  # Força o locale
-os.environ['LANG'] = 'pt_BR.UTF-8'
+# Configuração de locale com fallback mais robusto
+load_dotenv()
 
-try:
-    locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
-except locale.Error:
+def configure_locale():
     try:
-        locale.setlocale(locale.LC_ALL, 'pt_BR')
+        locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
     except locale.Error:
         try:
-            locale.setlocale(locale.LC_ALL, 'Portuguese_Brazil')
+            locale.setlocale(locale.LC_ALL, 'pt_BR')
         except locale.Error:
-            locale.setlocale(locale.LC_ALL, '')
-            st.warning("Locale pt_BR não disponível. Usando padrão do sistema.")
+            try:
+                locale.setlocale(locale.LC_ALL, 'Portuguese_Brazil')
+            except locale.Error:
+                try:
+                    # Tentativa genérica para sistemas Unix
+                    locale.setlocale(locale.LC_ALL, 'pt_BR.utf8')
+                except locale.Error:
+                    try:
+                        # Tentativa para Windows
+                        locale.setlocale(locale.LC_ALL, 'Portuguese')
+                    except locale.Error:
+                        # Fallback para locale padrão do sistema
+                        locale.setlocale(locale.LC_ALL, '')
+                        st.warning("Locale específico não disponível. Usando padrão do sistema.")
+
+configure_locale()
 
 # Restante das importações
 from utils.calculations import (
