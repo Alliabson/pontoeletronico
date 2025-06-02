@@ -10,31 +10,33 @@ from dotenv import load_dotenv
 # Configuração de locale com fallback mais robusto
 load_dotenv()
 
-def configure_locale():
-    try:
-        locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
-    except locale.Error:
+def safe_locale_set():
+    """Tenta configurar o locale de forma segura com múltiplos fallbacks"""
+    locale_options = [
+        'pt_BR.UTF-8', 
+        'pt_BR.utf8',
+        'pt_BR',
+        'Portuguese_Brazil',
+        'Portuguese',
+        ''
+    ]
+    
+    for loc in locale_options:
         try:
-            locale.setlocale(locale.LC_ALL, 'pt_BR')
+            locale.setlocale(locale.LC_ALL, loc)
+            st.session_state['locale_set'] = loc
+            return loc
         except locale.Error:
-            try:
-                locale.setlocale(locale.LC_ALL, 'Portuguese_Brazil')
-            except locale.Error:
-                try:
-                    # Tentativa genérica para sistemas Unix
-                    locale.setlocale(locale.LC_ALL, 'pt_BR.utf8')
-                except locale.Error:
-                    try:
-                        # Tentativa para Windows
-                        locale.setlocale(locale.LC_ALL, 'Portuguese')
-                    except locale.Error:
-                        # Fallback para locale padrão do sistema
-                        locale.setlocale(locale.LC_ALL, '')
-                        st.warning("Locale específico não disponível. Usando padrão do sistema.")
+            continue
+    
+    # Se nenhum funcionar, usa o padrão do sistema com aviso
+    st.warning("Não foi possível configurar o locale específico. Usando padrão do sistema.")
+    return ''
 
-configure_locale()
+# Configura o locale antes de qualquer outra coisa
+safe_locale_set()
 
-# Restante das importações
+# Restante das importações (agora o locale já está configurado)
 from utils.calculations import (
     calculate_worked_hours,
     calculate_salary,
