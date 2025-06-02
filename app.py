@@ -5,6 +5,26 @@ import locale
 import re
 import os
 from pathlib import Path
+from dotenv import load_dotenv  # Adicionado
+
+# Configuração de locale com fallback
+load_dotenv()  # Carrega variáveis de ambiente
+os.environ['LC_ALL'] = 'pt_BR.UTF-8'  # Força o locale
+os.environ['LANG'] = 'pt_BR.UTF-8'
+
+try:
+    locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
+except locale.Error:
+    try:
+        locale.setlocale(locale.LC_ALL, 'pt_BR')
+    except locale.Error:
+        try:
+            locale.setlocale(locale.LC_ALL, 'Portuguese_Brazil')
+        except locale.Error:
+            locale.setlocale(locale.LC_ALL, '')
+            st.warning("Locale pt_BR não disponível. Usando padrão do sistema.")
+
+# Restante das importações
 from utils.calculations import (
     calculate_worked_hours,
     calculate_salary,
@@ -16,7 +36,6 @@ import base64
 
 # Configurações iniciais
 st.set_page_config(layout="wide", page_title="Controle de Ponto Eletrônico", page_icon="⏱️")
-locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 
 # --- Configuração de armazenamento ---
 DATA_DIR = Path("data")
