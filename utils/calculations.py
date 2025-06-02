@@ -1,3 +1,7 @@
+import locale
+from datetime import datetime
+
+locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 
 def calculate_worked_hours(ent1, sai1, ent2, sai2):
     """Calcula o total de horas trabalhadas no formato HH:MM"""
