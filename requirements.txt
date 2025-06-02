@@ -4,4 +4,3 @@ python-dateutil
 openpyxl
 reportlab
 python-dotenv
-re
