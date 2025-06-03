@@ -6,6 +6,8 @@ import re
 import os
 from pathlib import Path
 from datetime import datetime
+import sys
+import traceback
 
 # === Início: Módulo calculations embutido ===
 from datetime import datetime
@@ -13,10 +15,11 @@ from datetime import datetime
 import locale
 try:
     locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
-except locale.Error:
-    locale.setlocale(locale.LC_ALL, '')
-except locale.Error:
-    locale.setlocale(locale.LC_ALL, '')  # Fallback para o padrão do sistema
+except:
+    try:
+        locale.setlocale(locale.LC_ALL, 'Portuguese_Brazil.1252')
+    except:
+        locale.setlocale(locale.LC_ALL, '')
 
 
 def calculate_worked_hours(ent1, sai1, ent2, sai2):
