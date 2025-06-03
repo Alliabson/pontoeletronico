@@ -1,51 +1,45 @@
-import streamlit as st
-from datetime import datetime, time, timedelta
-import pandas as pd
-import re
-import os
-from pathlib import Path
-from dotenv import load_dotenv
+# === Início: Módulo calculations embutido ===
+import locale
+from datetime import datetime
 
-# --- Versão Aprimorada do Seu Código Original ---
-# Mantendo toda a estrutura mas com as correções necessárias
+locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 
-# Configurações iniciais - SEM locale
-load_dotenv()
-st.set_page_config(layout="wide", page_title="Controle de Ponto Eletrônico", page_icon="⏱️")
-
-# --- Funções de Cálculo Integradas ---
 def calculate_worked_hours(ent1, sai1, ent2, sai2):
-    """Calcula horas trabalhadas no formato HH:MM"""
+    """Calcula o total de horas trabalhadas no formato HH:MM"""
+    times = [ent1, sai1, ent2, sai2]
+    if any(not t or t == "--:--" for t in times):
+        return "00:00"
+    
     try:
-        def time_to_minutes(t):
-            if not t or t in ["--:--", ""]:
-                return 0
-            h, m = map(int, t.split(':'))
+        # Converter para minutos
+        def to_minutes(time_str):
+            h, m = map(int, time_str.split(':'))
             return h * 60 + m
         
-        total = (time_to_minutes(sai1) - time_to_minutes(ent1)) + \
-                (time_to_minutes(sai2) - time_to_minutes(ent2))
-        return f"{total//60:02d}:{total%60:02d}" if total > 0 else "00:00"
+        total_minutes = (to_minutes(sai1) - to_minutes(ent1)) + (to_minutes(sai2) - to_minutes(ent2))
+        hours, minutes = divmod(total_minutes, 60)
+        return f"{hours:02d}:{minutes:02d}"
     except:
         return "00:00"
 
 def calculate_daily_salary(salario_bruto, dias_base=22):
-    """Calcula valor por dia de trabalho"""
-    try:
-        return float(salario_bruto) / dias_base
-    except:
-        return 0.0
+    """Calcula o valor do salário por dia"""
+    return salario_bruto / dias_base
+
+def calculate_hourly_salary(salario_bruto, horas_base=220):
+    """Calcula o valor do salário por hora"""
+    return salario_bruto / horas_base
 
 def calculate_taxes(salario_bruto, dependentes=0):
     """Calcula INSS e IRRF conforme tabelas vigentes"""
-    # Cálculo do INSS (atualizado)
+    # Cálculo do INSS (2023)
     if salario_bruto <= 1320.00:
         inss = salario_bruto * 0.075
-    elif salario_bruto <= 2571.29:
+    elif 1320.01 <= salario_bruto <= 2571.29:
         inss = (salario_bruto - 1320.00) * 0.09 + 99.00
-    elif salario_bruto <= 3856.94:
+    elif 2571.30 <= salario_bruto <= 3856.94:
         inss = (salario_bruto - 2571.29) * 0.12 + 99.00 + 112.62
-    elif salario_bruto <= 7507.49:
+    elif 3856.95 <= salario_bruto <= 7507.49:
         inss = (salario_bruto - 3856.94) * 0.14 + 99.00 + 112.62 + 154.28
     else:
         inss = 7507.49 * 0.14
@@ -55,11 +49,11 @@ def calculate_taxes(salario_bruto, dependentes=0):
     
     if base_irrf <= 1903.98:
         irrf = 0
-    elif base_irrf <= 2826.65:
+    elif 1903.99 <= base_irrf <= 2826.65:
         irrf = base_irrf * 0.075 - 142.80
-    elif base_irrf <= 3751.05:
+    elif 2826.66 <= base_irrf <= 3751.05:
         irrf = base_irrf * 0.15 - 354.80
-    elif base_irrf <= 4664.68:
+    elif 3751.06 <= base_irrf <= 4664.68:
         irrf = base_irrf * 0.225 - 636.13
     else:
         irrf = base_irrf * 0.275 - 869.36
@@ -76,12 +70,14 @@ def calculate_salary(
     adicional_noturno=0,
     outros_beneficios=0,
     outros_descontos=0,
-    dependentes=0
+    dependentes=0,
+    dias_base=22,
+    horas_base=220
 ):
     """Calcula o salário líquido com todos os benefícios e descontos"""
     # Cálculo de vencimentos
-    valor_dia = calculate_daily_salary(salario_bruto)
-    valor_hora = salario_bruto / 220  # Base de 220 horas mensais
+    valor_dia = salario_bruto / dias_base
+    valor_hora = salario_bruto / horas_base
     
     proporcional = valor_dia * dias_trabalhados
     valor_horas_extras = horas_extras * valor_hora * 1.5  # 50% de acréscimo
@@ -97,36 +93,36 @@ def calculate_salary(
     return {
         'bruto': salario_bruto,
         'proporcional': proporcional,
-        'horas_extras': valor_horas_extras,
         'adicional_noturno': adicional_noturno,
+        'horas_extras': valor_horas_extras,
         'outros_beneficios': outros_beneficios,
+        'total_vencimentos': total_vencimentos,
         'inss': taxes['inss'],
         'irrf': taxes['irrf'],
         'outros_descontos': outros_descontos,
-        'total_vencimentos': total_vencimentos,
         'total_descontos': total_descontos,
         'liquido': max(0, liquido),  # Salário não pode ser negativo
-        'dias_trabalhados': dias_trabalhados
+        'worked_days': dias_trabalhados
     }
+# === Fim: Módulo calculations embutido ===
 
-# --- Funções de Formatação Alternativas ---
-def format_currency(value):
-    """Formata valores monetários sem dependência de locale"""
-    try:
-        return f"R$ {float(value):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    except:
-        return "R$ 0,00"
+import streamlit as st
+from datetime import datetime, time, timedelta
+import pandas as pd
+import locale
+import re
+import os
+from pathlib import Path
 
-def format_date(date_obj):
-    """Formata datas no formato dd/mm/aaaa"""
-    if isinstance(date_obj, str):
-        return date_obj
-    try:
-        return date_obj.strftime('%d/%m/%Y')
-    except:
-        return "00/00/0000"
 
-# --- Configuração de Armazenamento (Mantido do seu original) ---
+from utils.pdf_generator import PDFGenerator
+import base64
+
+# Configurações iniciais
+st.set_page_config(layout="wide", page_title="Controle de Ponto Eletrônico", page_icon="⏱️")
+locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
+
+# --- Configuração de armazenamento ---
 DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
 EMPLOYEE_RECORDS_FILE = DATA_DIR / "employee_records.csv"
@@ -137,6 +133,7 @@ def load_employee_data():
     """Carrega os dados dos funcionários do arquivo CSV"""
     if EMPLOYEE_RECORDS_FILE.exists():
         df = pd.read_csv(EMPLOYEE_RECORDS_FILE, parse_dates=['periodo_inicio', 'periodo_fim'])
+        # Converter colunas de tempo para string (HH:MM)
         time_cols = ['Ent. 1', 'Saí. 1', 'Ent. 2', 'Saí. 2']
         for col in time_cols:
             if col in df.columns:
@@ -202,13 +199,13 @@ def validate_time(time_str):
     return re.match(r'^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$', time_str)
 
 def calculate_day_hours(row):
-    """Calcula horas trabalhadas e verifica atrasos"""
+    """Calcula horas trabalhadas e verifica atrasos, saídas antecipadas e horas extras"""
     turno_parts = row['Turno'].split()
     expected = {
-        'ent1': turno_parts[0] if len(turno_parts) > 0 else None,
-        'sai1': turno_parts[1] if len(turno_parts) > 1 else None,
-        'ent2': turno_parts[2] if len(turno_parts) > 2 else None,
-        'sai2': turno_parts[3] if len(turno_parts) > 3 else None
+        'ent1': turno_parts[0] if len(turno_parts) > 0 and turno_parts[0] != "--:--" else None,
+        'sai1': turno_parts[1] if len(turno_parts) > 1 and turno_parts[1] != "--:--" else None,
+        'ent2': turno_parts[2] if len(turno_parts) > 2 and turno_parts[2] != "--:--" else None,
+        'sai2': turno_parts[3] if len(turno_parts) > 3 and turno_parts[3] != "--:--" else None
     }
     
     # Obter horários registrados
@@ -225,17 +222,67 @@ def calculate_day_hours(row):
         registrado['ent2'], registrado['sai2']
     )
     
-    # Verificar atrasos
     observacoes = []
-    if all([expected['ent1'], registrado['ent1']]):
-        expected_min = int(expected['ent1'].split(':')[0]) * 60 + int(expected['ent1'].split(':')[1])
-        registered_min = int(registrado['ent1'].split(':')[0]) * 60 + int(registrado['ent1'].split(':')[1])
+    
+    # Verificar atrasos na entrada 1
+    if expected['ent1'] and registrado['ent1']:
+        expected_min = time_to_minutes(expected['ent1'])
+        registered_min = time_to_minutes(registrado['ent1'])
         
         if registered_min > expected_min:
-            atraso_min = registered_min - expected_min
-            observacoes.append(f"Entr. Atrasada ({atraso_min}min)")
+            atraso = registered_min - expected_min
+            observacoes.append(f"Entrada atrasada ({minutes_to_time(atraso)})")
+    
+    # Verificar saída antecipada 1
+    if expected['sai1'] and registrado['sai1']:
+        expected_min = time_to_minutes(expected['sai1'])
+        registered_min = time_to_minutes(registrado['sai1'])
+        
+        if registered_min < expected_min:
+            antecipacao = expected_min - registered_min
+            observacoes.append(f"Saída antecipada ({minutes_to_time(antecipacao)})")
+    
+    # Verificar atrasos na entrada 2
+    if expected['ent2'] and registrado['ent2']:
+        expected_min = time_to_minutes(expected['ent2'])
+        registered_min = time_to_minutes(registrado['ent2'])
+        
+        if registered_min > expected_min:
+            atraso = registered_min - expected_min
+            observacoes.append(f"Retorno atrasado ({minutes_to_time(atraso)})")
+    
+    # Verificar saída antecipada 2
+    if expected['sai2'] and registrado['sai2']:
+        expected_min = time_to_minutes(expected['sai2'])
+        registered_min = time_to_minutes(registrado['sai2'])
+        
+        if registered_min < expected_min:
+            antecipacao = expected_min - registered_min
+            observacoes.append(f"Saída final antecipada ({minutes_to_time(antecipacao)})")
+    
+    # Verificar horas extras
+    if all([registrado['ent1'], registrado['sai2']]):
+        total_esperado = 8 * 60 + 48  # 8 horas e 48 minutos em minutos
+        total_registrado = time_to_minutes(horas_trabalhadas)
+        
+        if total_registrado > total_esperado:
+            extra = total_registrado - total_esperado
+            observacoes.append(f"Horas extras ({minutes_to_time(extra)})")
+        elif total_registrado < total_esperado:
+            falta = total_esperado - total_registrado
+            observacoes.append(f"Horas faltantes ({minutes_to_time(falta)})")
     
     return horas_trabalhadas, ", ".join(observacoes) if observacoes else ""
+def time_to_minutes(time_str):
+    """Converte tempo no formato HH:MM para minutos"""
+    h, m = map(int, time_str.split(':'))
+    return h * 60 + m
+
+def minutes_to_time(minutes):
+    """Converte minutos para formato HH:MM"""
+    h = minutes // 60
+    m = minutes % 60
+    return f"{h:02d}:{m:02d}"
 
 def generate_pdf(employee_data, ponto_data, salary_data=None):
     """Gera o PDF do relatório de ponto"""
@@ -391,12 +438,26 @@ def ponto_table(employee_data, employee_data_df):
     """Tabela de registro de ponto com cálculo automático"""
     st.subheader("Registro Diário de Ponto")
     
+    # Obter primeiro e último dia do mês atual
+    today = datetime.now()
+    first_day = today.replace(day=1)
+    
+    # Verificar se o período selecionado é do mês atual
+    periodo_inicio = employee_data['periodo_inicio']
+    periodo_fim = employee_data['periodo_fim']
+    
+    # Se o período selecionado for diferente do mês atual, usar o mês atual
+    if periodo_inicio.month != today.month or periodo_fim.month != today.month:
+        periodo_inicio = first_day
+        periodo_fim = first_day + timedelta(days=32)
+        periodo_fim = periodo_fim.replace(day=1) - timedelta(days=1)  # Último dia do mês
+    
     # Verificar se há dados anteriores para este funcionário no período
     existing_records = pd.DataFrame()
     if not employee_data_df.empty:
         # Converter para strings para comparação
-        periodo_inicio_str = employee_data['periodo_inicio'].strftime('%Y-%m-%d')
-        periodo_fim_str = employee_data['periodo_fim'].strftime('%Y-%m-%d')
+        periodo_inicio_str = periodo_inicio.strftime('%Y-%m-%d')
+        periodo_fim_str = periodo_fim.strftime('%Y-%m-%d')
         
         mask = (employee_data_df['matricula'].astype(str) == str(employee_data['matricula'])) & \
                (employee_data_df['periodo_inicio'].astype(str) == periodo_inicio_str) & \
@@ -404,8 +465,8 @@ def ponto_table(employee_data, employee_data_df):
         
         existing_records = employee_data_df[mask]
     
-    # Criar dataframe com os dias do período
-    dates = pd.date_range(start=employee_data["periodo_inicio"], end=employee_data["periodo_fim"])
+    # Criar dataframe com todos os dias do mês
+    dates = pd.date_range(start=periodo_inicio, end=periodo_fim)
     data = []
     
     for date in dates:
@@ -423,11 +484,11 @@ def ponto_table(employee_data, employee_data_df):
             data.append({
                 "Dia": day_str,
                 "Turno": "07:12 10:30 12:00 17:30",
-                "Ent. 1": existing_day_data['Ent. 1'] if existing_day_data is not None else "07:12",
-                "Saí. 1": existing_day_data['Saí. 1'] if existing_day_data is not None else "10:30",
-                "Ent. 2": existing_day_data['Ent. 2'] if existing_day_data is not None else "12:00",
-                "Saí. 2": existing_day_data['Saí. 2'] if existing_day_data is not None else "17:30",
-                "Horas": existing_day_data['Horas'] if existing_day_data is not None else "08:48",
+                "Ent. 1": existing_day_data['Ent. 1'] if existing_day_data is not None else "--:--",
+                "Saí. 1": existing_day_data['Saí. 1'] if existing_day_data is not None else "--:--",
+                "Ent. 2": existing_day_data['Ent. 2'] if existing_day_data is not None else "--:--",
+                "Saí. 2": existing_day_data['Saí. 2'] if existing_day_data is not None else "--:--",
+                "Horas": existing_day_data['Horas'] if existing_day_data is not None else "00:00",
                 "Observações": existing_day_data['Observações'] if existing_day_data is not None else ""
             })
         else:  # Final de semana
@@ -498,11 +559,11 @@ def save_current_data(employee_data, ponto_data, employee_data_df):
     st.success("Dados salvos com sucesso!")
     create_backup()
 
-
 def render_summary(employee_data, df_ponto):
     """Renderiza o resumo mensal com cálculos"""
     st.subheader("Resumo Mensal")
     
+    # Calcular totais
     total_minutos = sum(
         int(h.split(':')[0]) * 60 + int(h.split(':')[1]) 
         for h in df_ponto['Horas'] if h != "00:00"
@@ -517,14 +578,18 @@ def render_summary(employee_data, df_ponto):
     dias_trabalhados = len([h for h in df_ponto['Horas'] if h != "00:00"])
     faltas = max(0, dias_uteis - dias_trabalhados)
     
+    # Calcular valores diários
     salario_diario = calculate_daily_salary(employee_data["salario_bruto"])
+    valor_hora = employee_data["salario_bruto"] / 220  # 220 horas mensais
     
+    # Exibir cards de resumo
     cols = st.columns(4)
     cols[0].metric("Horas Trabalhadas", horas_trabalhadas)
     cols[1].metric("Dias Trabalhados", dias_trabalhados)
     cols[2].metric("Faltas", faltas)
-    cols[3].metric("Valor por Dia", format_currency(salario_diario))
+    cols[3].metric("Valor por Dia", locale.currency(salario_diario, grouping=True, symbol=False))
     
+    # Seção de cálculo salarial
     with st.expander("Cálculo Salarial Detalhado", expanded=True):
         cols = st.columns(2)
         
@@ -538,6 +603,7 @@ def render_summary(employee_data, df_ponto):
             outros_beneficios = st.number_input("Outros Benefícios (R$)", min_value=0.0, value=0.0)
         
         if st.button("Calcular Salário Líquido"):
+            # Calcular salário
             salary_data = calculate_salary(
                 salario_bruto=employee_data["salario_bruto"],
                 dias_trabalhados=dias_trabalhados,
@@ -548,29 +614,30 @@ def render_summary(employee_data, df_ponto):
                 dependentes=dependentes
             )
             
+            # Exibir resultados
             st.markdown("### Resultado do Cálculo")
             
             cols = st.columns(2)
             with cols[0]:
                 st.markdown(f"""
-                **Salário Bruto:** {format_currency(salary_data['bruto'])}  
-                **Adicional Noturno:** {format_currency(salary_data['adicional_noturno'])}  
-                **Horas Extras:** {format_currency(salary_data['horas_extras'])}  
-                **Outros Benefícios:** {format_currency(salary_data['outros_beneficios'])}  
-                **Total de Vencimentos:** {format_currency(salary_data['total_vencimentos'])}
+                **Salário Bruto:** R$ {locale.currency(salary_data['bruto'], grouping=True, symbol=False)}  
+                **Adicional Noturno:** R$ {locale.currency(salary_data['adicional_noturno'], grouping=True, symbol=False)}  
+                **Horas Extras:** R$ {locale.currency(salary_data['horas_extras'], grouping=True, symbol=False)}  
+                **Outros Benefícios:** R$ {locale.currency(salary_data['outros_beneficios'], grouping=True, symbol=False)}  
+                **Total de Vencimentos:** R$ {locale.currency(salary_data['total_vencimentos'], grouping=True, symbol=False)}
                 """)
             
             with cols[1]:
                 st.markdown(f"""
-                **INSS:** {format_currency(salary_data['inss'])}  
-                **IRRF:** {format_currency(salary_data['irrf'])}  
-                **Outros Descontos:** {format_currency(salary_data['outros_descontos'])}  
-                **Total de Descontos:** {format_currency(salary_data['total_descontos'])}  
-                **Salário Líquido:** {format_currency(salary_data['liquido'])}
+                **INSS:** R$ {locale.currency(salary_data['inss'], grouping=True, symbol=False)}  
+                **IRRF:** R$ {locale.currency(salary_data['irrf'], grouping=True, symbol=False)}  
+                **Outros Descontos:** R$ {locale.currency(salary_data['outros_descontos'], grouping=True, symbol=False)}  
+                **Total de Descontos:** R$ {locale.currency(salary_data['total_descontos'], grouping=True, symbol=False)}  
+                **Salário Líquido:** R$ {locale.currency(salary_data['liquido'], grouping=True, symbol=False)}
                 """)
             
             st.markdown(f"""
-            **Proporcional ({dias_trabalhados} dias):** {format_currency(salary_data['proporcional'])}
+            **Proporcional ({dias_trabalhados} dias):** R$ {locale.currency(salary_data['proporcional'], grouping=True, symbol=False)}
             """)
             
             # Botão para gerar PDF com os cálculos
@@ -623,37 +690,32 @@ def show_history(employee_data):
 
 # --- Aplicação principal ---
 def main():
-    try:
-        load_css()
-        render_header()
+    load_css()
+    render_header()
+    
+    # Carregar dados existentes
+    employee_data_df = load_employee_data()
+    
+    # Informações do funcionário
+    employee_data = employee_info_form(employee_data_df)
+    
+    if employee_data:
+        # Tabela de ponto
+        df_ponto = ponto_table(employee_data, employee_data_df)
         
-        # Carregar dados existentes
-        employee_data_df = load_employee_data()
+        # Resumo e cálculos
+        render_summary(employee_data, df_ponto)
         
-        # Informações do funcionário
-        employee_data = employee_info_form(employee_data_df)
+        # Mostrar histórico
+        show_history(employee_data)
         
-        if employee_data:
-            # Tabela de ponto
-            df_ponto = ponto_table(employee_data, employee_data_df)
-            
-            # Resumo e cálculos
-            render_summary(employee_data, df_ponto)
-            
-            # Mostrar histórico
-            show_history(employee_data)
-            
-            # Botão para salvar os dados do ponto
-            if st.button("Salvar Registros de Ponto"):
-                save_current_data(employee_data, df_ponto, employee_data_df)
-            
-            # Assinatura
-            st.divider()
-            st.text_input("Assinatura:", value=employee_data["nome"])
-            
-    except Exception as e:
-        st.error(f"Ocorreu um erro inesperado: {str(e)}")
-        st.info("Por favor, recarregue a página e tente novamente. Se o problema persistir, entre em contato com o suporte.")
+        # Botão para salvar os dados do ponto
+        if st.button("Salvar Registros de Ponto"):
+            save_current_data(employee_data, df_ponto, employee_data_df)
+        
+        # Assinatura
+        st.divider()
+        st.text_input("Assinatura:", value=employee_data["nome"])
 
 if __name__ == "__main__":
     main()
