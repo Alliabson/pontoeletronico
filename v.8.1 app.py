@@ -1,3 +1,12 @@
+import streamlit as st
+from datetime import datetime, time, timedelta
+import pandas as pd
+import locale
+import re
+import os
+from pathlib import Path
+from datetime import datetime
+
 # === Início: Módulo calculations embutido ===
 import locale
 from datetime import datetime
@@ -106,13 +115,6 @@ def calculate_salary(
     }
 # === Fim: Módulo calculations embutido ===
 
-import streamlit as st
-from datetime import datetime, time, timedelta
-import pandas as pd
-import locale
-import re
-import os
-from pathlib import Path
 
 
 from utils.pdf_generator import PDFGenerator
