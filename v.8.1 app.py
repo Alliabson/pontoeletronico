@@ -8,10 +8,14 @@ from pathlib import Path
 from datetime import datetime
 
 # === Início: Módulo calculations embutido ===
-import locale
 from datetime import datetime
 
-locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
+import locale
+try:
+    locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
+except locale.Error:
+    locale.setlocale(locale.LC_ALL, '')  # Fallback para o padrão do sistema
+
 
 def calculate_worked_hours(ent1, sai1, ent2, sai2):
     """Calcula o total de horas trabalhadas no formato HH:MM"""
