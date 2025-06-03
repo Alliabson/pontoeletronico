@@ -291,21 +291,49 @@ def load_employee_data():
 
 def save_employee_data(df):
     try:
-        df.to_csv(EMPLOYEE_RECORDS_FILE, index=False)
+        # Salva o arquivo principal
+        df.to_csv(EMPLOYEE_RECORDS_FILE, index=False, encoding='utf-8')
+        
+        # Cria um backup
+        if create_backup():
+            # Se o backup foi criado com sucesso, tenta fazer commit no Git
+            backup_file = max(BACKUP_DIR.glob("backup_*.csv"), key=os.path.getmtime)
+            if git_add_commit_push(backup_file, f"Backup automático {datetime.now().strftime('%Y-%m-%d %H:%M')}"):
+                st.success("Backup salvo e enviado para o repositório Git!")
+            else:
+                st.warning("Backup salvo localmente, mas não foi possível enviar para o Git")
+        
+        return True
     except Exception as e:
         st.error(f"Erro ao salvar dados: {str(e)}")
+        return False
 
 def create_backup():
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_file = BACKUP_DIR / f"backup_{timestamp}.csv"
-    
-    if EMPLOYEE_RECORDS_FILE.exists():
-        try:
+    try:
+        # Garante que o diretório de backups existe
+        BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_file = BACKUP_DIR / f"backup_{timestamp}.csv"
+        
+        if EMPLOYEE_RECORDS_FILE.exists():
+            # Lê os dados atuais
             df = pd.read_csv(EMPLOYEE_RECORDS_FILE)
-            df.to_csv(backup_file, index=False)
-            st.success(f"Backup criado: {backup_file.name}")
-        except Exception as e:
-            st.error(f"Erro ao criar backup: {str(e)}")
+            
+            # Salva o backup
+            df.to_csv(backup_file, index=False, encoding='utf-8')
+            
+            # Força a escrita no disco
+            backup_file.resolve().touch()
+            
+            st.success(f"Backup criado com sucesso: {backup_file.name}")
+            return True
+        else:
+            st.warning("Nenhum arquivo de registros encontrado para backup")
+            return False
+    except Exception as e:
+        st.error(f"Erro ao criar backup: {str(e)}")
+        return False
         
 def validate_time(time_str):
     if not time_str or time_str in ["--:--", ""]:
@@ -754,6 +782,13 @@ def render_summary(employee_data, df_ponto):
 def show_history(employee_data):
     st.subheader("Histórico de Registros")
     
+    # Mostra backups disponíveis
+    backups = list_backups()
+    if backups:
+        st.write("Backups disponíveis:")
+        for backup in backups[:5]:  # Mostra apenas os 5 mais recentes
+            st.write(f"- {backup.name} ({datetime.fromtimestamp(backup.stat().st_mtime).strftime('%d/%m/%Y %H:%M')})")
+    
     employee_data_df = load_employee_data()
     if not employee_data_df.empty and 'matricula' in employee_data:
         history_df = employee_data_df[employee_data_df['matricula'] == employee_data['matricula']]
@@ -779,7 +814,31 @@ def show_history(employee_data):
             st.info("Nenhum histórico encontrado para este funcionário.")
     else:
         st.info("Nenhum histórico disponível.")
-
+def git_add_commit_push(filepath, message):
+    """Função para adicionar, commitar e pushar arquivos no Git"""
+    try:
+        import subprocess
+        # Configura o usuário do Git (substitua com suas informações)
+        subprocess.run(['git', 'config', '--global', 'user.email', 'seu-email@example.com'], check=True)
+        subprocess.run(['git', 'config', '--global', 'user.name', 'Seu Nome'], check=True)
+        
+        # Adiciona o arquivo
+        subprocess.run(['git', 'add', str(filepath)], check=True)
+        
+        # Commit
+        subprocess.run(['git', 'commit', '-m', message], check=True)
+        
+        # Push
+        subprocess.run(['git', 'push'], check=True)
+        
+        return True
+    except subprocess.CalledProcessError as e:
+        st.error(f"Erro no Git: {str(e)}")
+        return False
+    except Exception as e:
+        st.error(f"Erro geral: {str(e)}")
+        return False
+        
 # === Aplicação principal ===
 def main():
     load_css()
