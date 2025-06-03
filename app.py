@@ -848,41 +848,46 @@ def git_add_commit_push(filepath, message):
         import subprocess
         import os
         
-        # Configura o diretório do repositório
+        # Configurações do Git
         repo_dir = os.getcwd()
+        git_email = "alliabsonvivos@gmail.com"
+        git_user = "Alliabson"
         
-        # Configura o usuário do Git com SUAS credenciais
-        subprocess.run(['git', 'config', '--global', 'user.email', 'alliabsonvivos@gmail.com'], check=True)
-        subprocess.run(['git', 'config', '--global', 'user.name', 'Alliabson'], check=True)
+        # Configura o usuário
+        subprocess.run(['git', 'config', '--global', 'user.email', git_email], check=True)
+        subprocess.run(['git', 'config', '--global', 'user.name', git_user], check=True)
         
-        # Adiciona autenticação por token (mais seguro que senha)
-        repo_url = f"https://Alliabson:{os.getenv('GITHUB_TOKEN')}@github.com/Alliabson/pontoeletronico.git"
+        # Obtém o token das variáveis de ambiente
+        github_token = os.getenv('GITHUB_TOKEN')
+        if not github_token:
+            st.error("Token do GitHub não configurado")
+            return False
+        
+        # Configura a URL do repositório com autenticação
+        repo_url = f"https://{git_user}:{github_token}@github.com/Alliabson/pontoeletronico.git"
         subprocess.run(['git', 'remote', 'set-url', 'origin', repo_url], cwd=repo_dir, check=True)
         
-        # Adiciona o arquivo específico
+        # Operações Git
         subprocess.run(['git', 'add', str(filepath)], cwd=repo_dir, check=True)
-        
-        # Commit
         subprocess.run(['git', 'commit', '-m', message], cwd=repo_dir, check=True)
-        
-        # Faz pull antes do push para resolver possíveis conflitos
         subprocess.run(['git', 'pull', '--rebase', 'origin', 'main'], cwd=repo_dir, check=True)
         
-        # Push
-        result = subprocess.run(['git', 'push', 'origin', 'main'], cwd=repo_dir, 
+        # Push com tratamento de erro detalhado
+        result = subprocess.run(['git', 'push', 'origin', 'main'], cwd=repo_dir,
                               capture_output=True, text=True)
         
         if result.returncode != 0:
-            st.warning(f"Git push warning: {result.stderr}")
+            error_msg = result.stderr if result.stderr else "Erro desconhecido"
+            st.error(f"Erro no Git push: {error_msg[:200]}")  # Limita o tamanho da mensagem
             return False
-        
+            
         return True
         
     except subprocess.CalledProcessError as e:
-        st.error(f"Erro no Git (code {e.returncode}): {e.stderr}")
+        st.error(f"Erro no comando Git: {e.stderr[:200] if e.stderr else str(e)}")
         return False
     except Exception as e:
-        st.error(f"Erro geral no Git: {str(e)}")
+        st.error(f"Erro inesperado: {str(e)[:200]}")
         return False
         
 # === Aplicação principal ===
