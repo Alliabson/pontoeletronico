@@ -779,6 +779,18 @@ def render_summary(employee_data, df_ponto):
                 save_current_data(employee_data, save_data, load_employee_data())
                 st.success("Dados do cálculo salvos com sucesso!")
 
+def list_backups():
+    """Lista todos os arquivos de backup disponíveis"""
+    try:
+        if not BACKUP_DIR.exists():
+            return []
+        
+        backups = sorted(BACKUP_DIR.glob("backup_*.csv"), key=lambda f: f.stat().st_mtime, reverse=True)
+        return backups
+    except Exception as e:
+        st.error(f"Erro ao listar backups: {str(e)}")
+        return []
+        
 def show_history(employee_data):
     st.subheader("Histórico de Registros")
     
@@ -814,6 +826,7 @@ def show_history(employee_data):
             st.info("Nenhum histórico encontrado para este funcionário.")
     else:
         st.info("Nenhum histórico disponível.")
+        
 def git_add_commit_push(filepath, message):
     """Função para adicionar, commitar e pushar arquivos no Git"""
     try:
@@ -860,6 +873,7 @@ def main():
         
         st.divider()
         st.text_input("Assinatura:", value=employee_data["nome"])
+
 
 if __name__ == "__main__":
     main()
