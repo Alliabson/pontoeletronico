@@ -531,7 +531,7 @@ def employee_info_form(employee_data_df):
                                      value=parse_date(existing_data.get('periodo_inicio'), datetime.now().replace(day=1).date()) if existing_data else datetime.now().replace(day=1).date())
         
         periodo_fim = st.date_input("Período Fim*", 
-                                  value=parse_date(existing_data.get('periodo_fim'), datetime.now().date()) if existing_data else datetime.now().date()
+                                  value=parse_date(existing_data.get('periodo_fim'), datetime.now().date()) if existing_data else datetime.now().date())
         
         if is_new_employee:
             st.info("Novo funcionário detectado. Preencha todos os campos obrigatórios (*)")
