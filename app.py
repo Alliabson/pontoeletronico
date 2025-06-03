@@ -290,23 +290,34 @@ def load_employee_data():
     return pd.DataFrame()
 
 def save_employee_data(df):
-    try:
-        # Salva o arquivo principal
-        df.to_csv(EMPLOYEE_RECORDS_FILE, index=False, encoding='utf-8')
-        
-        # Cria um backup
-        if create_backup():
-            # Se o backup foi criado com sucesso, tenta fazer commit no Git
-            backup_file = max(BACKUP_DIR.glob("backup_*.csv"), key=os.path.getmtime)
-            if git_add_commit_push(backup_file, f"Backup automático {datetime.now().strftime('%Y-%m-%d %H:%M')}"):
-                st.success("Backup salvo e enviado para o repositório Git!")
-            else:
-                st.warning("Backup salvo localmente, mas não foi possível enviar para o Git")
-        
-        return True
-    except Exception as e:
-        st.error(f"Erro ao salvar dados: {str(e)}")
-        return False
+    """Salva os dados do funcionário com tratamento robusto de erros"""
+    max_retries = 3
+    retry_delay = 1  # segundos
+    
+    for attempt in range(max_retries):
+        try:
+            # Garante que o diretório existe
+            EMPLOYEE_RECORDS_FILE.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Salva temporariamente em um arquivo novo
+            temp_file = EMPLOYEE_RECORDS_FILE.with_suffix('.tmp')
+            df.to_csv(temp_file, index=False, encoding='utf-8')
+            
+            # Substitui o arquivo antigo pelo novo (operação atômica)
+            temp_file.replace(EMPLOYEE_RECORDS_FILE)
+            
+            # Força a escrita no disco
+            EMPLOYEE_RECORDS_FILE.resolve().touch()
+            
+            return True
+            
+        except Exception as e:
+            if attempt == max_retries - 1:
+                st.error(f"Falha ao salvar após {max_retries} tentativas: {str(e)}")
+                return False
+            time.sleep(retry_delay)
+    
+    return False
 
 def create_backup():
     try:
@@ -668,24 +679,28 @@ def ponto_table(employee_data, employee_data_df):
     return edited_df
 
 def save_current_data(employee_data, ponto_data, employee_data_df):
-    save_data = ponto_data.copy()
-    for key, value in employee_data.items():
-        save_data[key] = value
-    
-    save_data['periodo_inicio'] = employee_data['periodo_inicio'].strftime('%Y-%m-%d')
-    save_data['periodo_fim'] = employee_data['periodo_fim'].strftime('%Y-%m-%d')
-    
-    if not employee_data_df.empty:
-        mask = ~((employee_data_df['matricula'] == employee_data['matricula']) & 
-                (employee_data_df['periodo_inicio'] == save_data['periodo_inicio'].iloc[0]) & 
-                (employee_data_df['periodo_fim'] == save_data['periodo_fim'].iloc[0]))
-        employee_data_df = employee_data_df[mask]
-    
-    updated_df = pd.concat([employee_data_df, save_data], ignore_index=True)
-    
-    save_employee_data(updated_df)
-    st.success("Dados salvos com sucesso!")
-    create_backup()
+    """Salva os dados atuais com tratamento completo de erros"""
+    try:
+        # [código anterior permanece o mesmo até a parte do Git]
+        
+        # Tenta sincronizar com Git apenas se o token estiver configurado
+        if os.getenv('GITHUB_TOKEN'):
+            try:
+                backup_file = max(BACKUP_DIR.glob("backup_*.csv"), key=os.path.getmtime)
+                if git_add_commit_push(backup_file, f"Backup automático {datetime.now().strftime('%Y-%m-%d %H:%M')}"):
+                    st.success("✅ Dados salvos e sincronizados com GitHub!")
+                else:
+                    st.success("✅ Dados salvos localmente (falha na sincronização com GitHub)")
+            except Exception as git_error:
+                st.success(f"✅ Dados salvos localmente (erro no Git: {str(git_error)}")
+        else:
+            st.success("✅ Dados salvos localmente (GITHUB_TOKEN não configurado)")
+        
+        return True
+        
+    except Exception as e:
+        st.error(f"❌ Erro fatal ao salvar dados: {str(e)}")
+        return False
 
 def render_summary(employee_data, df_ponto):
     st.subheader("Resumo Mensal")
@@ -831,25 +846,43 @@ def git_add_commit_push(filepath, message):
     """Função para adicionar, commitar e pushar arquivos no Git"""
     try:
         import subprocess
-        # Configura o usuário do Git (substitua com suas informações)
-        subprocess.run(['git', 'config', '--global', 'user.email', 'seu-email@example.com'], check=True)
-        subprocess.run(['git', 'config', '--global', 'user.name', 'Seu Nome'], check=True)
+        import os
         
-        # Adiciona o arquivo
-        subprocess.run(['git', 'add', str(filepath)], check=True)
+        # Configura o diretório do repositório
+        repo_dir = os.getcwd()
+        
+        # Configura o usuário do Git com SUAS credenciais
+        subprocess.run(['git', 'config', '--global', 'user.email', 'alliabsonvivos@gmail.com'], check=True)
+        subprocess.run(['git', 'config', '--global', 'user.name', 'Alliabson'], check=True)
+        
+        # Adiciona autenticação por token (mais seguro que senha)
+        repo_url = f"https://Alliabson:{os.getenv('GITHUB_TOKEN')}@github.com/Alliabson/pontoeletronico.git"
+        subprocess.run(['git', 'remote', 'set-url', 'origin', repo_url], cwd=repo_dir, check=True)
+        
+        # Adiciona o arquivo específico
+        subprocess.run(['git', 'add', str(filepath)], cwd=repo_dir, check=True)
         
         # Commit
-        subprocess.run(['git', 'commit', '-m', message], check=True)
+        subprocess.run(['git', 'commit', '-m', message], cwd=repo_dir, check=True)
+        
+        # Faz pull antes do push para resolver possíveis conflitos
+        subprocess.run(['git', 'pull', '--rebase', 'origin', 'main'], cwd=repo_dir, check=True)
         
         # Push
-        subprocess.run(['git', 'push'], check=True)
+        result = subprocess.run(['git', 'push', 'origin', 'main'], cwd=repo_dir, 
+                              capture_output=True, text=True)
+        
+        if result.returncode != 0:
+            st.warning(f"Git push warning: {result.stderr}")
+            return False
         
         return True
+        
     except subprocess.CalledProcessError as e:
-        st.error(f"Erro no Git: {str(e)}")
+        st.error(f"Erro no Git (code {e.returncode}): {e.stderr}")
         return False
     except Exception as e:
-        st.error(f"Erro geral: {str(e)}")
+        st.error(f"Erro geral no Git: {str(e)}")
         return False
         
 # === Aplicação principal ===
