@@ -853,7 +853,10 @@ def main():
         show_history(employee_data)
         
         if st.button("Salvar Registros de Ponto"):
-            save_current_data(employee_data, df_ponto, employee_data_df)
+            if save_current_data(employee_data, df_ponto, employee_data_df):
+                st.success("Dados salvos com sucesso e backup criado!")
+            else:
+                st.error("Ocorreu um erro ao salvar os dados")
         
         st.divider()
         st.text_input("Assinatura:", value=employee_data["nome"])
