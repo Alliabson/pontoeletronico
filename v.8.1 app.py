@@ -5,8 +5,6 @@ import locale
 import re
 import os
 from pathlib import Path
-import sys
-import traceback
 from io import BytesIO
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
@@ -14,6 +12,15 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import inch
 import base64
+import sys
+import traceback
+
+def handle_exception(exc_type, exc_value, exc_traceback):
+    """Mostra erros completos no Streamlit"""
+    tb = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+    st.error(f"Ocorreu um erro:\n```\n{tb}\n```")
+
+sys.excepthook = handle_exception
 
 # === Configuração do handler de exceções ===
 def handle_exception(exc_type, exc_value, exc_traceback):
