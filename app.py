@@ -531,7 +531,7 @@ def employee_info_form(employee_data_df):
                                      value=parse_date(existing_data.get('periodo_inicio'), datetime.now().replace(day=1).date()) if existing_data else datetime.now().replace(day=1).date())
         
         periodo_fim = st.date_input("Período Fim*", 
-                                  value=parse_date(existing_data.get('periodo_fim'), datetime.now().date()) if existing_data else datetime.now().date())
+                                  value=parse_date(existing_data.get('periodo_fim'), datetime.now().date()) if existing_data else datetime.now().date()
         
         if is_new_employee:
             st.info("Novo funcionário detectado. Preencha todos os campos obrigatórios (*)")
@@ -662,10 +662,15 @@ def save_current_data(employee_data, ponto_data, employee_data_df):
 def render_summary(employee_data, df_ponto):
     st.subheader("Resumo Mensal")
     
-    total_minutos = sum(
-        int(h.split(':')[0]) * 60 + int(h.split(':')[1]) 
-        for h in df_ponto['Horas'] if h != "00:00"
-    )
+    total_minutos = 0
+    for h in df_ponto['Horas']:
+        if h != "00:00":
+            try:
+                horas, minutos = map(int, h.split(':'))
+                total_minutos += horas * 60 + minutos
+            except:
+                continue
+                
     horas_trabalhadas = f"{total_minutos // 60:02d}:{total_minutos % 60:02d}"
     
     dias_uteis = len([d for d in pd.date_range(
@@ -713,24 +718,24 @@ def render_summary(employee_data, df_ponto):
             cols = st.columns(2)
             with cols[0]:
                 st.markdown(f"""
-                **Salário Bruto:** R$ {locale.currency(salary_data['bruto'], grouping=True, symbol=False)}  
-                **Adicional Noturno:** R$ {locale.currency(salary_data['adicional_noturno'], grouping=True, symbol=False)}  
-                **Horas Extras:** R$ {locale.currency(salary_data['horas_extras'], grouping=True, symbol=False)}  
-                **Outros Benefícios:** R$ {locale.currency(salary_data['outros_beneficios'], grouping=True, symbol=False)}  
-                **Total de Vencimentos:** R$ {locale.currency(salary_data['total_vencimentos'], grouping=True, symbol=False)}
+                **Salário Bruto:** {format_currency(salary_data['bruto'])}  
+                **Adicional Noturno:** {format_currency(salary_data['adicional_noturno'])}  
+                **Horas Extras:** {format_currency(salary_data['horas_extras'])}  
+                **Outros Benefícios:** {format_currency(salary_data['outros_beneficios'])}  
+                **Total de Vencimentos:** {format_currency(salary_data['total_vencimentos'])}
                 """)
             
             with cols[1]:
                 st.markdown(f"""
-                **INSS:** R$ {locale.currency(salary_data['inss'], grouping=True, symbol=False)}  
-                **IRRF:** R$ {locale.currency(salary_data['irrf'], grouping=True, symbol=False)}  
-                **Outros Descontos:** R$ {locale.currency(salary_data['outros_descontos'], grouping=True, symbol=False)}  
-                **Total de Descontos:** R$ {locale.currency(salary_data['total_descontos'], grouping=True, symbol=False)}  
-                **Salário Líquido:** R$ {locale.currency(salary_data['liquido'], grouping=True, symbol=False)}
+                **INSS:** {format_currency(salary_data['inss'])}  
+                **IRRF:** {format_currency(salary_data['irrf'])}  
+                **Outros Descontos:** {format_currency(salary_data['outros_descontos'])}  
+                **Total de Descontos:** {format_currency(salary_data['total_descontos'])}  
+                **Salário Líquido:** {format_currency(salary_data['liquido'])}
                 """)
             
             st.markdown(f"""
-            **Proporcional ({dias_trabalhados} dias):** R$ {locale.currency(salary_data['proporcional'], grouping=True, symbol=False)}
+            **Proporcional ({dias_trabalhados} dias):** {format_currency(salary_data['proporcional'])}
             """)
             
             if st.button("Gerar Relatório Completo em PDF"):
