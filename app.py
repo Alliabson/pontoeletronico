@@ -239,13 +239,33 @@ def calculate_salary(salario_bruto, dias_trabalhados, horas_extras=0, adicional_
 # === Configurações iniciais ===
 st.set_page_config(layout="wide", page_title="Controle de Ponto Eletrônico", page_icon="⏱️")
 
-try:
-    locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
-except:
+def setup_locale():
     try:
-        locale.setlocale(locale.LC_ALL, 'Portuguese_Brazil.1252')
+        locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
+    except locale.Error:
+        try:
+            locale.setlocale(locale.LC_ALL, 'pt_BR')
+        except locale.Error:
+            try:
+                locale.setlocale(locale.LC_ALL, 'Portuguese_Brazil.1252')
+            except locale.Error:
+                try:
+                    locale.setlocale(locale.LC_ALL, '')
+                except locale.Error:
+                    pass
+
+setup_locale()
+
+def format_currency(value):
+    """Formata valores monetários de forma segura"""
+    try:
+        if hasattr(locale, 'currency'):
+            return locale.currency(value, grouping=True, symbol=False)
     except:
-        locale.setlocale(locale.LC_ALL, '')
+        pass
+    
+    # Fallback manual
+    return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 # Configuração de armazenamento
 DATA_DIR = Path("data")
@@ -286,7 +306,7 @@ def create_backup():
             st.success(f"Backup criado: {backup_file.name}")
         except Exception as e:
             st.error(f"Erro ao criar backup: {str(e)}")
-
+        
 def validate_time(time_str):
     if not time_str or time_str in ["--:--", ""]:
         return None
@@ -663,7 +683,7 @@ def render_summary(employee_data, df_ponto):
     cols[0].metric("Horas Trabalhadas", horas_trabalhadas)
     cols[1].metric("Dias Trabalhados", dias_trabalhados)
     cols[2].metric("Faltas", faltas)
-    cols[3].metric("Valor por Dia", locale.currency(salario_diario, grouping=True, symbol=False))
+    cols[3].metric("Valor por Dia", format_currency(salario_diario))
     
     with st.expander("Cálculo Salarial Detalhado", expanded=True):
         cols = st.columns(2)
