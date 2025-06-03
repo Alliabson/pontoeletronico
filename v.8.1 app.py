@@ -14,6 +14,8 @@ import locale
 try:
     locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 except locale.Error:
+    locale.setlocale(locale.LC_ALL, '')
+except locale.Error:
     locale.setlocale(locale.LC_ALL, '')  # Fallback para o padrão do sistema
 
 
@@ -126,7 +128,10 @@ import base64
 
 # Configurações iniciais
 st.set_page_config(layout="wide", page_title="Controle de Ponto Eletrônico", page_icon="⏱️")
-locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
+try:
+    locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
+except locale.Error:
+    locale.setlocale(locale.LC_ALL, '')
 
 # --- Configuração de armazenamento ---
 DATA_DIR = Path("data")
