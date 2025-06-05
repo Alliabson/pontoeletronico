@@ -15,6 +15,10 @@ import base64
 import sys
 import traceback
 
+github_token = os.getenv('GITHUB_TOKEN')
+if not github_token:
+    raise ValueError("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")
+
 def handle_exception(exc_type, exc_value, exc_traceback):
     """Mostra erros completos no Streamlit"""
     tb = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
